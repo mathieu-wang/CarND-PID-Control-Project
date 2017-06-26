@@ -35,58 +35,34 @@ There's an experimental patch for windows in this [PR](https://github.com/udacit
 3. Compile: `cmake .. && make`
 4. Run it: `./pid`. 
 
-## Editor Settings
+## PID Gains and Tuning
+The PID gains affect the steering angle correction in the following way:
+### Proportional (P) gain:
+The P gain determines the amount of angle to be corrected based directly on the Cross Track Error (CTE). It is directly multipled with the CTE so that a higher error will result in a bigger correction at the next step. In this context, a P gain that is too low might not correct the angle fast enough and let the vehicle go off-track, especially during sharp turns. If the P gain is too high, the vehicle may overcorrect it's steering angle and oscillate back and forth around the central line, and might even spiral out of control.
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
+### Differential (D) gain:
+The D controller adds a component of the correction that depends on the difference between current CTE and last measured CTE. When used in conjunction with the P controller, the D controller smoothes the oscillations that resulted from the P controller. When the D gain is too low, the car will keep oscillating, whereas a D gain that is too high will cancel a lot of the corrections of the P controller, making the vehicle feel unresponsive.
 
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
+### Integral (I) gain:
+The I controller makes corrections based on the amount of error accumulated so far. This ensures that the vehicle does not have any bias, which is especially important when external factors such as drift are present. When the I gain is low, the vehicle might go on a path that has a constant error from the desired path, and might not correct for the bias fast enough. When the I gain is too high, the vehicle will start oscillating again even though P and D gains have already been tuned.
 
-## Code Style
+### Tuning steps
+The gains were tuned manually based on the observed CTE, the correction steering angle, and the behavior of the vehicle in the simulator. Given the properties of the three gains described above, the following steps are followed to obtain values that make the vehicle drive safely around the track indefinitely.
+1. Set all three gains to 0
+2. Slowly increase the P gain until it's large enought to fully correct the steering angle on a sharp turn
+3. Slowly increase the D gain until it stops most of the oscillation from the P controller without compromising the speed of the correction at sharp turns
+4. Slowly increase the I gain until it corrects the bias observed around certain parts of the track without introducing too much oscillations to the vehicle angle corrections.
 
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
+### Final results
+Kp = -0.15
+Ki = -0.0015
+Kd = -30
 
-## Project Instructions and Rubric
+### Observations and Learnings
+1. One intersting observaition was that the correctiosn would be very abrupt. An analysis of the correction values revealed that it was due to the steering angle correction maxing out at 25 degrees. Bringing down all the gains proportionally helped with smoothing the corrections.
 
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+2. Introducing a non-zero I gain actually made the controller oscillate more, but it is necessary in real-world scenarios where drifts and constant error bias need to be corrected.
 
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/e8235395-22dd-4b87-88e0-d108c5e5bbf4/concepts/6a4d8d42-6a04-4aa6-b284-1697c0fd6562)
-for instructions and the project rubric.
-
-## Hints!
-
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
+### Future improvements
+1. Use the "Twiddle" algorithm to find the optimal parameters. This could be run with different initial values so local optoma can be avoided.
+2. Apply the PID controller with a different set of gains on the speed of the robot, so that it can run faster on straight paths with small error and slower when the error is large and a lot of correction is happening.
